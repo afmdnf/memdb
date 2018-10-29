@@ -1,103 +1,73 @@
 class MemDB:
-
+    
     def __init__(self):
         self.disk = {}
-        self.dirty = {}
-        self.log = list()
-        self.transaction_cnt = 0
+        self.dirty = {} # items not committed to disk yet
+        self.log = list() # maintains state/changes during transactions
+        self.trans_count = 0
 
-    def set(self, name, value):
-        if self.transaction_cnt == 0:
-            self.disk[name] = value
+    def set(self, key, value):
+        if self.trans_count == 0:
+            self.disk[key] = value
         else:
-            if name in self.dirty:
-                self.log.append((name, self.dirty.get(name), value))
+            if key in self.dirty:
+                self.log.append((key, self.dirty.get(key), value)) # (key, oldvalue, newvalue)
             else:
-                self.log.append((name, self.disk.get(name), value))
-            self.dirty[name] = value
+                self.log.append((key, self.disk.get(key), value))
+            self.dirty[key] = value
 
-    def get(self, name):
-        if name in self.dirty:
-            return self.dirty[name]
-        return self.disk.get(name, None)
+    def get(self, key):
+        if key in self.dirty:
+            return self.dirty[key]
+        return self.disk.get(key, None)
 
-    def unset(self, name):
-        """
-        Unset the variable name, making it just like that variable was never set.
-        """
-        if self.transaction_cnt == 0:
-            del self.disk[name]
+    def remove(self, key):
+        if self.trans_count == 0:
+            del self.disk[key]
         else:
-            if name in self.dirty:
-                self.log.append((name, self.dirty.get(name), None))
+            if key in self.dirty:
+                self.log.append((key, self.dirty.get(key), None))
             else:
-                self.log.append((name, self.disk.get(name), None))
-            self.dirty[name] = None
-
-    def numWithValue(self, value):
-        """
-        Print out the number of variables that are currently set to value. 
-        If no variables equal that value, print 0.
-        """
-        count = 0
-        for name in self.dirty:
-            if self.dirty[name] == value:
-                count += 1
-        for name in self.disk:
-            if name not in self.dirty and self.disk[name] == value:
-                count += 1
-        return count
+                self.log.append((key, self.disk.get(key), None))
+            self.dirty[key] = None
 
     def begin(self):
         """
-        Open a new transaction block. Transaction blocks can be nested (BEGIN can
-        be issued inside of an existing block) but you should get non‐nested 
-        transaction working first before starting on nested. A GET within a 
-        transaction returns the latest value by any command. Any data command that 
-        is run outside of a transaction block should commit immediately. 
+        Opens a new transaction block. Transaction blocks can be nested. Any data command run outside
+        of a transaction block committed immediately. 
         """
         self.log.append("BEGIN")
-        self.transaction_cnt += 1
+        self.trans_count += 1
 
     def rollback(self):
         """
-        Undo all of the commands issued in the most recent transaction block, 
-        and close the block. Print nothing if successful, 
-        or print NO TRANSACTION if no transaction is in progress. 
+        Undo all commands in most recent transaction block and close block.
         """
-        if self.transaction_cnt == 0:
+        if self.trans_count == 0:
             return "NO TRANSACTION"
 
         cur = self.log.pop()
         while cur != "BEGIN":
-            name, old, new = cur
-            self.dirty[name] = old
+            key, old, new = cur
+            self.dirty[key] = old
             cur = self.log.pop()
 
-        self.transaction_cnt -= 1
+        self.trans_count -= 1
 
     def commit(self):
         """
-        Close all open transaction blocks, permanently applying the changes made 
-        in them. Print nothing if successful, or print NO TRANSACTION if no 
-        transaction is in progress. 
+        Closes all open transaction blocks and commits all changes to disk.
         """
-        if self.transaction_cnt == 0:
+        if self.trans_count == 0:
             return "NO TRANSACTION"
 
-        for name in self.dirty:
-            value = self.dirty[name]
+        for key in self.dirty:
+            value = self.dirty[key]
             if value == None:
-                del self.disk[name]
+                del self.disk[key]
             else:
-                self.disk[name] = value
+                self.disk[key] = value
 
-        self.transaction_cnt = 0
-
-    def end(self):
-        """
-        Exit the program. Your program will always receive this as its 
-        last command.
-        """
-        pass
-
+        self.trans_count = 0
+        self.log.clear()
+        self.dirty.clear()
