@@ -1,5 +1,5 @@
 class MemDB:
-    
+
     def __init__(self):
         self.disk = {}
         self.dirty = {} # items not committed to disk yet
@@ -53,6 +53,8 @@ class MemDB:
             cur = self.log.pop()
 
         self.trans_count -= 1
+        if not self.trans_count:
+            self.clear()
 
     def commit(self):
         """
@@ -68,6 +70,9 @@ class MemDB:
             else:
                 self.disk[key] = value
 
+        self.clear()
+        
+    def clear(self):
         self.trans_count = 0
-        self.log.clear()
+        del self.log[:]
         self.dirty.clear()
